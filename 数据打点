@@ -1,0 +1,183 @@
+package com.jd.innerbridge.view;
+
+import android.content.Context;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Matrix;
+import android.graphics.drawable.Drawable;
+import android.text.TextUtils;
+import android.util.AttributeSet;
+import android.util.Log;
+import android.view.Gravity;
+import android.view.LayoutInflater;
+import android.view.View;
+import android.view.ViewGroup;
+import android.view.ViewTreeObserver;
+import android.widget.FrameLayout;
+import android.widget.ImageView;
+import android.widget.LinearLayout;
+
+import androidx.annotation.Nullable;
+
+import com.jd.innerbridge.entity.WarePoi;
+import com.jd.innerbridge.example.R;
+
+import java.util.List;
+
+public class DataImgView extends LinearLayout {
+    BaseLayer bsBaseLayer;
+    int aiview_width = 100, aiview_height = 100;
+    ImageView imageView;
+    FrameLayout frameLayout;
+    LinearLayout root;
+    IItemClickListener iItemClickListener;
+
+
+    public DataImgView(Context context) {
+        super(context);
+        init();
+    }
+
+    public DataImgView(Context context, @Nullable AttributeSet attrs) {
+        super(context, attrs);
+        init();
+    }
+
+    public DataImgView(Context context, @Nullable AttributeSet attrs, int defStyleAttr) {
+        super(context, attrs, defStyleAttr);
+        init();
+    }
+
+    public void init() {
+        Context c = this.getContext();
+        LayoutInflater.from(c).inflate(R.layout.activity_data, this, true);
+        root = findViewById(R.id.root);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT
+                , FrameLayout.LayoutParams.WRAP_CONTENT);
+        frameLayout = new FrameLayout(c);
+        root.addView(frameLayout, lp);
+        imageView = new ImageView(c);
+        imageView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        int px = dp2px(this.getContext(), 130);
+        imageView.setLayoutParams(new FrameLayout.LayoutParams(FrameLayout.LayoutParams.MATCH_PARENT
+                , px));
+
+
+    }
+
+    public static int dp2px(Context context, float dpValue) {
+        float scale = context.getResources().getDisplayMetrics().density;
+        return (int) (dpValue * scale + 0.5f);
+    }
+
+    public BaseLayer createBaseLayer(int w, int h) {
+        BaseLayer bs = new BaseLayer(this.getContext());
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w
+                , h);
+        lp.gravity = Gravity.CENTER;
+        bs.setLayoutParams(lp);
+
+        return bs;
+    }
+
+    int bmW = 1;
+    int bmH = 1;
+
+    public void addData(String path, List<WarePoi> list) {
+//        String path= GloalUtils.getImgPath();
+        Bitmap bmp;
+
+        final List<WarePoi> listmp = list;
+        if (!TextUtils.isEmpty(path)) {
+            bmp = BitmapFactory.decodeFile(path);
+            bmW = bmp.getWidth();
+            bmH = bmp.getHeight();
+
+            imageView.setImageBitmap(bmp);
+
+        }
+        imageView.getViewTreeObserver().addOnGlobalLayoutListener(new ViewTreeObserver.OnGlobalLayoutListener() {
+            @Override
+            public void onGlobalLayout() {
+                imageView.getViewTreeObserver().removeOnGlobalLayoutListener(this);
+                final Drawable d = imageView.getDrawable();
+                float[] f = new float[9];
+                imageView.getImageMatrix().getValues(f);
+
+                // Extract the scale values using the constants (if aspect ratio maintained, scaleX == scaleY)
+                final float scaleX = f[Matrix.MSCALE_X];
+                final float scaleY = f[Matrix.MSCALE_Y];
+
+                // Get the drawable (could also get the bitmap behind the drawable and getWidth/getHeight)
+                final int origW = d.getIntrinsicWidth();
+                final int origH = d.getIntrinsicHeight();
+
+                // Calculate the actual dimensions
+                final int actW = Math.round(origW * scaleX);
+                final int actH = Math.round(origH * scaleY);
+
+                Log.d("@ATI", "actW=" + actW + ",actH=" + actH);
+                if (bsBaseLayer != null) {
+                    frameLayout.removeView(bsBaseLayer);
+                }
+                bsBaseLayer = createBaseLayer(actW, actH);
+                frameLayout.addView(bsBaseLayer);
+                addAiView(bsBaseLayer, listmp, scaleX, scaleY);
+            }
+        });
+        try {
+            frameLayout.addView(imageView);
+        } catch (Exception e) {
+
+        }
+        frameLayout.requestLayout();
+    }
+
+    public IItemClickListener getiItemClickListener() {
+        return iItemClickListener;
+    }
+
+    public void setiItemClickListener(IItemClickListener iItemClickListener) {
+        this.iItemClickListener = iItemClickListener;
+    }
+
+    public void addAiView(BaseLayer bsBaseLayer, List<WarePoi> list, float scaleX, float scaleY) {
+        if (list == null) {
+            return;
+        }
+        bsBaseLayer.removeAllViews();
+        for (WarePoi poi : list) {
+            int actW = Math.round(poi.left * scaleX);
+            int actH = Math.round(poi.top * scaleY);
+            int w = (int) ((poi.right - poi.left) * scaleX);
+            int h = (int) ((poi.bottom - poi.top) * scaleY);
+            AIView aiView1 = createAIView(actW + w / 2 - aiview_width / 2, actH + h / 2 - aiview_height / 2);
+            aiView1.setOnClickListener(new OnClickListener() {
+                @Override
+                public void onClick(View v) {
+                    if (iItemClickListener != null) {
+                        iItemClickListener.onItemClick(poi);
+                    }
+                }
+            });
+            bsBaseLayer.addAi(aiView1);
+        }
+    }
+
+    public AIView createAIView(int x, int y) {
+        AIView aiView = new AIView(this.getContext());
+
+        aiView.x = x;
+        aiView.y = y;
+        aiView.width = aiview_width;
+        aiView.height = aiview_height;
+        aiView.setLayoutParams(new ViewGroup.LayoutParams(aiview_width, aiview_height));
+        return aiView;
+    }
+
+    public interface IItemClickListener {
+        public void onItemClick(WarePoi poi);
+    }
+
+}
